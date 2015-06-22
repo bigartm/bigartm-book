@@ -1,0 +1,283 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import argparse
+import tempfile
+import shutil
+import glob
+import itertools
+
+
+def print_diagnostic(msg):
+    sys.stderr.write(msg + '\n')
+
+    
+def print_top_tokens(top_tokens_score):
+    print_diagnostic('Top tokens per topic:')
+    topic_index = -1
+    lines = []
+    line = ''    
+    for i in range(0, top_tokens_score.num_entries):
+        if top_tokens_score.topic_index[i] != topic_index:
+            topic_index = top_tokens_score.topic_index[i]
+            if len(line) != 0:
+                lines.append(line)
+            line = 'Topic#%d: ' % (topic_index + 1)
+        line += '%s (%.3f) ' % (top_tokens_score.token[i], top_tokens_score.weight[i])
+    if len(line) > 0:
+        lines.append(line)
+    for line in lines:
+        print_diagnostic(line)
+
+def parse_counts(line, default_key=None):
+    if len(line) == 0:
+        return {}
+    if default_key is not None:
+        try:
+            value = int(line)
+            return {default_key: value}
+        except ValueError:
+            pass
+    counts = {}
+    for part in line.split(','):
+        part_splitted = part.rsplit(':', 1)
+        key, value = part_splitted[0], 1
+        if len(part_splitted) == 2:
+            value = int(part_splitted[1])
+        counts[key] = value
+    return counts
+
+
+def parse_weights(line):
+    if len(line) == 0:
+        return {}
+    weights = {}
+    for part in line.split(','):
+        part_splitted = part.rsplit(':', 1)
+        key, value = part_splitted[0], 1
+        if len(part_splitted) == 2:
+            value = float(part_splitted[1])
+        weights[key] = value
+    return weights
+
+
+def parse_count_or_percentage(s):
+    s = s.strip()
+    if s.endswith('%'):
+        return float(s[:-1]) / 100
+    try:
+        return int(s)
+    except ValueError:
+        return float(s)
+    
+
+
+def create_topic_names(topic_groups):
+    return [
+        group_name + '_' + str(topic_index)
+        for group_name, count in topic_groups.iteritems()
+        for topic_index in xrange(count)
+    ]
+
+
+def initialize_bigartm(args):
+    bigartm_python_path = os.path.join(args.bigartm_path, 'src/python')
+    bigartm_lib = os.path.join(args.bigartm_path, 'build/src/artm/libartm.so')
+    sys.path.append(bigartm_python_path)
+    os.environ['ARTM_SHARED_LIBRARY'] = bigartm_lib
+    try:
+        import artm.messages_pb2
+        import artm.library
+        artm.library.Library()
+    except ImportError:
+        raise RuntimeError('Cannot load BigARTM libraries')
+
+
+def run_bigartm(args):
+    import artm.messages_pb2
+    import artm.library
+    
+    FORMATS = {
+        'vw': artm.library.CollectionParserConfig_Format_VowpalWabbit,
+        'bow': artm.library.CollectionParserConfig_Format_BagOfWordsUci,
+        'mm': artm.library.CollectionParserConfig_Format_MatrixMarket,
+    }
+    
+    def save_model(model, filename):
+        with open(filename, 'wb') as binary_file:
+            binary_file.write(model.SerializeToString())
+            
+    def load_model(filename):
+        topic_model = artm.messages_pb2.TopicModel()
+        with open(filename, 'rb') as binary_file:
+            topic_model.ParseFromString(binary_file.read())
+        return topic_model
+    
+    def write_model_readable(model, filename):
+        pass
+
+    temp_batches_dir = None
+    
+    if args.use_batches is None:
+        # Parse corpus
+        
+        source_path = args.read_corpus
+        if source_path is None:
+            raise RuntimeError('Corpus path is not specified')
+
+        batches_path = args.save_batches
+        if batches_path is None:
+            temp_batches_dir = tempfile.mkdtemp()
+            print_diagnostic('Create temporary batch folder: %s' % temp_batches_dir)
+            batches_path = temp_batches_dir
+
+        collection_parser_config = artm.messages_pb2.CollectionParserConfig()
+        collection_parser_config.format = FORMATS[args.corpus_format]
+        collection_parser_config.docword_file_path = source_path
+        if args.use_dictionary_bow:
+            collection_parser_config.vocab_file_path = args.use_dictionary_bow
+        collection_parser_config.dictionary_file_name = 'dictionary'
+        collection_parser_config.num_items_per_batch = args.batch_size
+        collection_parser_config.target_folder = batches_path
+
+        print_diagnostic('Parse collection: %s -> %s, batch_size=%d' % (
+            source_path, batches_path, args.batch_size))
+        artm.library.Library().ParseCollection(collection_parser_config)
+    else:
+        batches_path = args.use_batches
+        
+    # Create master
+    master_config = artm.messages_pb2.MasterComponentConfig()
+    if args.threads:
+        master_config.processors_count = args.threads
+    master_config.disk_path = batches_path
+
+    master = artm.library.MasterComponent(config=master_config)
+    
+    # Load or create dictionary
+    #unique_tokens = artm.library.Library().LoadDictionary(os.path.join(batches_disk_path, 'dictionary'))
+    #dictionary = master.CreateDictionary(unique_tokens)
+    #model.Initialize(dictionary)
+    
+    # Load or initialize model
+    if args.load_model:
+        print_diagnostic('Loading model %s' % args.load_model)
+        topic_model = load_model(args.load_model)
+        model = master.CreateModel(
+            topics_count=topic_model.topics_count,
+            topic_names=topic_model.topic_names,
+        )
+        model.Overwrite(topic_model)
+    else:
+        print_diagnostic('Initialize model')
+        if args.topics is None:
+            raise RuntimeError('Topics are not specified')
+
+        topic_groups = parse_counts(args.topics, default_key='topic')
+        topic_names = create_topic_names(topic_groups)
+    
+        model = master.CreateModel(topics_count=len(topic_names), topic_names=topic_names)
+        model.config().use_new_tokens = False
+        model.Reconfigure()
+        
+        init_args = artm.messages_pb2.InitializeModelArgs()
+        init_args.source_type = artm.library.InitializeModelArgs_SourceType_Batches
+        init_args.disk_path = batches_path
+
+        init_filter = init_args.filter.add()
+        if args.dictionary_min_df is not None:
+            if isinstance(args.dictionary_min_df, float):
+                init_filter.min_percentage = args.dictionary_min_df
+            else:
+                init_filter.min_items = args.dictionary_min_df
+        if args.dictionary_max_df is not None:
+            if isinstance(args.dictionary_max_df, float):
+                init_filter.max_percentage = args.dictionary_max_df
+            else:
+                init_filter.min_items = args.dictionary_max_df
+        
+        model.Initialize(args=init_args)
+    
+    # Run learning
+    perplexity_score = master.CreatePerplexityScore()
+    top_tokens_score = master.CreateTopTokensScore()
+    items_processed_score = master.CreateItemsProcessedScore()
+    
+    master.InvokeIteration(args.passes)
+    
+    done = False
+    first_sync = True
+    next_items_processed = args.batch_size * args.update_every
+    while not done:
+        done = master.WaitIdle(10)
+        current_items_processed = items_processed_score.GetValue(model).value
+        if done or (current_items_processed >= next_items_processed):
+            update_count = current_items_processed / (args.batch_size * args.update_every)
+            next_items_processed = current_items_processed + (args.batch_size * args.update_every)
+            rho = pow(args.tau0 + update_count, -args.kappa)
+            model.Synchronize(decay_weight=(0 if first_sync else (1-rho)), apply_weight=rho)
+            first_sync = False
+
+            current_perplexity_score = perplexity_score.GetValue(model).value
+            print_diagnostic('processed %d items, perplexity = %f' % (current_items_processed, current_perplexity_score))
+    
+    topic_model = master.GetTopicModel(model)
+    
+    # Print top tokens
+    print_top_tokens(top_tokens_score.GetValue(model))
+
+    # Save
+    if args.save_dictionary:
+        shutil.copy()
+    if args.save_model:
+        save_model(topic_model, args.save_model)
+    if args.write_model_readable:
+        write_model_readable(topic_model, args.write_model_readable)
+    
+    # Finish
+    master.Dispose()
+    if temp_batches_dir is not None:
+        shutil.rmtree(temp_batches_dir)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='BigARTM CLI Proof-of-Concept')
+    
+    parser.add_argument('--bigartm-path', default='/home/romovpa/bigartm/')
+
+    parser.add_argument('--threads', type=int)
+    
+    parser.add_argument('--corpus-format', choices=['vw', 'mm', 'bow'], default='vw')
+    parser.add_argument('--read-corpus')
+    parser.add_argument('--batch-size', type=int, default=1000)
+    parser.add_argument('--use-batches')
+    
+    parser.add_argument('--use-dictionary')
+    parser.add_argument('--use-dictionary-bow')
+    parser.add_argument('--dictionary-min-df', type=parse_count_or_percentage)
+    parser.add_argument('--dictionary-max-df', type=parse_count_or_percentage)
+    
+    parser.add_argument('--load-model')
+    parser.add_argument('--topics')
+    parser.add_argument('--passes', type=int, default=1)
+    parser.add_argument('--inner-iterations-count', type=int)
+    parser.add_argument('--update-every', type=int, default=1)
+    parser.add_argument('--tau0', type=float, default=1024.0)
+    parser.add_argument('--kappa', type=float, default=0.7)
+    parser.add_argument('--use-modalities')
+    parser.add_argument('--regularizer', default=[], action='append')
+    
+    parser.add_argument('--save-batches')
+    parser.add_argument('--save-dictionary')
+    parser.add_argument('--save-model')
+    
+    parser.add_argument('--write-predictions', type=argparse.FileType('w'))
+    parser.add_argument('--write-model-readable', type=argparse.FileType('w'))
+    
+    args = parser.parse_args()
+
+    print_diagnostic(' '.join(sys.argv))
+    initialize_bigartm(args)
+    run_bigartm(args)
+    
