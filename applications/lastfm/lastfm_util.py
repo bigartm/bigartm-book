@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 get_ipython().magic(u'matplotlib inline')
 
 plays_file = 'usersha1-artmbid-artname-plays.tsv'
+users = {}
 
 def create_batches(users_to_handle, users_in_batch):
     batch_path = 'batches' #Папка с батчами
@@ -63,6 +64,14 @@ def create_batches(users_to_handle, users_in_batch):
                 item.id = handled_users
                 field = item.field.add()
 
+                if last_user_id != "":
+                    plays_sum = 0
+                    for artist in users[last_user_id]:
+                        plays_sum += users[last_user_id][artist]
+                    for artist in users[last_user_id]:
+                        users[last_user_id][artist] /= float(plays_sum)
+                users[user_id] = {}
+                
                 last_user_id = user_id
                 handled_users += 1
 
@@ -71,9 +80,15 @@ def create_batches(users_to_handle, users_in_batch):
             if artist_id not in artists_idxs:
                 artists_idxs[artist_id] = len(artists)
                 artists.append(artist_name)
+                
+            if (artist_name in users[user_id]):
+                users[user_id][artist_name] += int(plays)
+            else:
+                users[user_id][artist_name] = int(plays)
 
             field.token_id.append(artists_idxs[artist_id])
             field.token_count.append(int(plays))
+            
     return batch_path
 
 def create_topic_names(topic_count, background_topic_count):
@@ -164,8 +179,8 @@ def print_genres(model, objective_topics, background_topics):
         print model.scores_info['TopTokensScore'].last_topic_info[topic_name].tokens
 
 
-def find_similar_musicians(model, musician, top_matches_count, objective_topics):
-    top_matches = []
+def find_similar_musicians(model, musician, top_musicians_count, objective_topics):
+    top_matches = {}
 
     for topic in objective_topics:
         topic_musicians = model.scores_info['TopTokensScoreExtended'].last_topic_info[topic].tokens
@@ -174,6 +189,9 @@ def find_similar_musicians(model, musician, top_matches_count, objective_topics)
             main_musician_ind = topic_musicians.index(musician)
             for i in xrange(len(topic_musicians)):
                 if topic_musicians[i] != musician:
-                    top_matches.append((weights[i] * weights[main_musician_ind], topic_musicians[i]))
+                    if topic_musicians[i] in top_matches:
+                        top_matches[topic_musicians[i]] += weights[i] * weights[main_musician_ind]
+                    else:
+                        top_matches[topic_musicians[i]] = weights[i] * weights[main_musician_ind]
 
-    return sorted(top_matches, reverse=True)[:top_matches_count]
+    return sorted([(match[1], match[0]) for match in top_matches.items()], reverse=True)[:top_musicians_count]
