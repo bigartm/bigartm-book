@@ -3,6 +3,9 @@ import scipy.spatial.distance as sp_dist
 from sklearn.manifold import TSNE
 import numpy as np
 
+import artm.messages_pb2 as messages_pb2
+import artm.library as library
+
 class MathUtil:
     @staticmethod
     def log_0(x):

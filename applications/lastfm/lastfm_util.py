@@ -25,12 +25,13 @@ users = {}
 
 def create_batches(users_to_handle, users_in_batch):
     batch_path = 'batches' #Папка с батчами
+    dictionary_path = 'dictionary.dict'
     if os.path.exists(batch_path):
         shutil.rmtree(batch_path)
 
-    artist_id_to_name = {} #Мапа, переводящая artist_id в имя
-    artists_idxs = {} #Мапа, переводящая artist_id в номер в батче
-    artists = [] #Имена артистов в батче
+    musicians_idxs = {} #Мапа, переводящая musician_name в номер в батче
+    musicians = [] #Имена артистов в батче
+    musicians_dict = {}
 
     last_user_id = ''
     handled_users = 0
@@ -44,16 +45,22 @@ def create_batches(users_to_handle, users_in_batch):
 
         for row in tsvin:
 
-            user_id, artist_id, artist_name, plays = row
+            user_id, musician_id, musician_name, plays = row
+
+            if musician_name not in musicians_dict:
+                musicians_dict[musician_name] = (int(plays), 1)
+            else:
+                elem = musicians_dict[musician_name]
+                musicians_dict[musician_name] = (elem[0] + int(plays), elem[1] + 1)
 
             if user_id != last_user_id:
                 if handled_users > users_to_handle or handled_users % users_in_batch == 0:
                     if batch is not None:
-                        for artist in artists:
-                            batch.token.append(artist.decode('utf8'))
+                        for musician in musicians:
+                            batch.token.append(musician.decode('utf8'))
                         artm.library.Library().SaveBatch(batch, batch_path)
-                        artists = []
-                        artists_idxs = {}
+                        musicians = []
+                        musicians_idxs = {}
                     batch = artm.messages_pb2.Batch()
                     batch.id = str(uuid.uuid4())
 
@@ -66,30 +73,41 @@ def create_batches(users_to_handle, users_in_batch):
 
                 if last_user_id != "":
                     plays_sum = 0
-                    for artist in users[last_user_id]:
-                        plays_sum += users[last_user_id][artist]
-                    for artist in users[last_user_id]:
-                        users[last_user_id][artist] /= float(plays_sum)
+                    for musician in users[last_user_id]:
+                        plays_sum += users[last_user_id][musician]
+                    for musician in users[last_user_id]:
+                        users[last_user_id][musician] /= float(plays_sum)
                 users[user_id] = {}
                 
                 last_user_id = user_id
                 handled_users += 1
 
-            if artist_id not in artist_id_to_name:
-                artist_id_to_name[artist_id] = artist_name
-            if artist_id not in artists_idxs:
-                artists_idxs[artist_id] = len(artists)
-                artists.append(artist_name)
+            if musician_name not in musicians_idxs:
+                musicians_idxs[musician_name] = len(musicians)
+                musicians.append(musician_name)
                 
-            if (artist_name in users[user_id]):
-                users[user_id][artist_name] += int(plays)
+            if musician_name in users[user_id]:
+                users[user_id][musician_name] += int(plays)
             else:
-                users[user_id][artist_name] = int(plays)
+                users[user_id][musician_name] = int(plays)
 
-            field.token_id.append(artists_idxs[artist_id])
+            field.token_id.append(musicians_idxs[musician_name])
             field.token_count.append(int(plays))
-            
-    return batch_path
+
+
+    dictionary_config = artm.messages_pb2.DictionaryConfig()
+    dictionary_config.name = "dictionary"
+    for musician in musicians_dict:
+        entry = dictionary_config.entry.add()
+        entry.key_token = musician.decode('utf8')
+        entry.token_count = musicians_dict[musician][0]
+        entry.items_count = musicians_dict[musician][1]
+        entry.class_id = "@default_class"
+    dictionary_str = dictionary_config.SerializeToString()
+    with open(dictionary_path, 'wb') as f: 
+        f.write(dictionary_str)
+        
+    return batch_path, dictionary_path
 
 def create_topic_names(topic_count, background_topic_count):
 
@@ -111,6 +129,8 @@ def create_topic_names(topic_count, background_topic_count):
 def create_model(all_topics, objective_topics, background_topics, batch_path):
     model = ArtmModel(topic_names=all_topics)
     model.num_processors = 4
+
+    model.master.CreateDictionary
 
     # Configure scores
 
