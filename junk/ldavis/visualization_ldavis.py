@@ -8,15 +8,19 @@ class MathUtil:
     def log_0(x):
         eps = 1e-37
         result = np.empty(x.shape)
-        result[x < eps] = 0
-        result[x > eps] = np.log(x[x > eps])
+        x_less_eps = x < eps
+        x_more_esp = np.logical_not(x_less_eps)
+        result[x_less_eps] = 0
+        result[x_more_esp] = np.log(x[x_more_esp])
         return result
 
     @staticmethod
     def div_0(u, v):
         result = np.empty(v.shape)
-        result[v != 0] = u[v != 0] / v[v != 0]
-        result[v == 0] = 0
+        v_not_eq_0 = v != 0
+        v_eq_0 = np.logical_not(v_not_eq_0)
+        result[v_not_eq_0] = u[v_not_eq_0] / v[v_not_eq_0]
+        result[v_eq_0] = 0
         return result
 
     @staticmethod
@@ -39,6 +43,7 @@ class ArtmModelVisualizer(object):
         self.dictionary_path = dictionary_path
 
         self.eps = 1e-37
+        self.data = None
 
         if not os.path.exists('ldavis.js'):
             self._download_ldavis()
@@ -177,6 +182,10 @@ class ArtmModelVisualizer(object):
         return html
         
     def to_file(self, filename, title=None):
+        if self.data is None:
+            print "Data wasn't generated."
+            return
+
         if title is None:
             title = 'LDAvis Topic Model Visualization'
             
@@ -288,3 +297,30 @@ TEMPLATE_PAGE = jinja2.Template("""
 </html>
 
 """)
+
+
+import sys
+HOME = '/home/vovapolu/Projects/'
+BIGARTM_PATH = HOME + 'bigartm/'
+BIGARTM_BUILD_PATH = BIGARTM_PATH + 'build/'
+sys.path.append(os.path.join(BIGARTM_PATH, 'src/python'))
+os.environ['ARTM_SHARED_LIBRARY'] = os.path.join(BIGARTM_BUILD_PATH, 'src/artm/libartm.so')
+
+import artm.artm_model
+from artm.artm_model import *
+
+def test():
+    model = ArtmModel(num_topics=100)
+    if len(glob.glob('kos' + "/*.batch")) < 1:
+        parse(data_path='', data_format='bow_uci', collection_name='kos')
+    model.load_dictionary(dictionary_name='dictionary', dictionary_path='kos/dictionary')
+    model.initialize(dictionary_name='dictionary')
+    model.regularizers.add(SmoothSparsePhiRegularizer(name='SparsePhi', tau=-1.5))
+    model.regularizers.add(SmoothSparseThetaRegularizer(name='SparseTheta', tau=-5.0))
+    model.regularizers.add(DecorrelatorPhiRegularizer(name='DecorrelatorPhi', tau=100000.0))
+    model.fit_offline(data_path='kos', num_collection_passes=15)
+
+    vis = ArtmModelVisualizer(model, dictionary_path="kos/dictionary")
+    vis.to_file("test.html")
+
+test()
