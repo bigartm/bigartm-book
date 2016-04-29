@@ -1,7 +1,38 @@
 Parallel bag-of-words corpus of Wikipedia pages on two languages: English and Russian
 =====================================================================================
 
+Загрузка данных
+---------------
+
+**EN wiki (latest)**
+
+* https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2  - articles
+* https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-langlinks.sql.gz - cross-language links
+
+**RU wiki (latest)**
+
+* https://dumps.wikimedia.org/ruwiki/latest/ruwiki-latest-pages-articles.xml.bz2  - articles
+* https://dumps.wikimedia.org/ruwiki/latest/ruwiki-latest-langlinks.sql.gz  - cross-language links
+
+Трюки с gensim
+--------------
+
+* Подправить https://github.com/piskvorky/gensim/blob/develop/gensim/corpora/wikicorpus.py вот так:
+
+```
+#===============================================================================
+#         #for group in utils.chunkize(texts, chunksize=10 * self.processes, maxsize=1):
+#             #for tokens, title, pageid in pool.imap(process_article, group): # chunksize=10):
+#                 ... // continue with processing tokens
+# =>
+#         for text in texts:
+#                 tokens, title, pageid = process_article(text) # chunksize=10):
+#                 ... // continue with processing tokens
+#===============================================================================
+```
+
 Описание схемы запуска эксперимента от Саши Фрея.
+-------------------------------------------------
 
 #### Шаг первый
 запарсить файлы с кросс-язычными ссылками
