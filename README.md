@@ -8,5 +8,3 @@ Topic Modeling with BigARTM
 - [ARTM Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/ARTM_tutorial_EN.ipynb)
 - [LDA Python Tutorial (RU)](https://github.com/bigartm/bigartm-book/blob/master/LDA_tutorial_RU.ipynb)
 - [LDA Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/LDA_tutorial_EN.ipynb)
-- [Visualizing topic models using tm-navigator](https://github.com/bigartm/bigartm-book/blob/master/BigartmNavigatorExample.ipynb)
-- [Co-occurrence example](https://github.com/bigartm/bigartm-book/blob/master/junk/mmro/bigARTM_dictionaries_example.ipynb)
