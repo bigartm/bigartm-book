@@ -2,9 +2,11 @@ Topic Modeling with BigARTM
 ===========================
 
 - [BigARTM CLI (RU)](https://github.com/bigartm/bigartm-book/blob/master/junk/cli/BigARTM_CommandLineInferface.ipynb)
-- [BigARTM Python Basic Experiment (EN)](https://github.com/bigartm/bigartm-book/blob/master/BigARTM_example_EN.ipynb)
-- [BigARTM Python Basic Experiment (RU)](https://github.com/bigartm/bigartm-book/blob/master/BigARTM_example_RU.ipynb)
-- [BigARTM Python Tutorial (RU)](https://github.com/bigartm/bigartm-book/blob/master/BigARTM_basic_tutorial_RU.ipynb)
-- [BigARTM Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/BigARTM_basic_tutorial_EN.ipynb)
+- [ARTM Python Basic Experiment (RU)](https://github.com/bigartm/bigartm-book/blob/master/ARTM_example_RU.ipynb)
+- [ARTM Python Basic Experiment (EN)](https://github.com/bigartm/bigartm-book/blob/master/ARTM_example_EN.ipynb)
+- [ARTM Python Tutorial (RU)](https://github.com/bigartm/bigartm-book/blob/master/ARTM_tutorial_RU.ipynb)
+- [ARTM Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/ARTM_tutorial_EN.ipynb)
+- [LDA Python Tutorial (RU)](https://github.com/bigartm/bigartm-book/blob/master/LDA_tutorial_RU.ipynb)
+- [LDA Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/LDA_tutorial_EN.ipynb)
 - [Visualizing topic models using tm-navigator](https://github.com/bigartm/bigartm-book/blob/master/BigartmNavigatorExample.ipynb)
 - [Co-occurrence example](https://github.com/bigartm/bigartm-book/blob/master/junk/mmro/bigARTM_dictionaries_example.ipynb)
