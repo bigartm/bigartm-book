@@ -24,7 +24,7 @@ def load_20newsgroups(path='data'):
         os.mkdir('{}/20newsgroups'.format(path))
     with open('{}/20newsgroups/20newsgroups_train.vw'.format(path), 'w') as f_output:
         for i, (document, document_class) in enumerate(zip(data['data'], data['target'])):
-            content = " ".join(re.sub('[^a-z0-9]', ' ', document.lower()).split())
+            content = " ".join(re.sub('[^a-z]', ' ', document.lower()).split())
             new_line = '{} |text {} |class_id {}\n'.format(i, content, document_class)
             f_output.write(new_line)
     os.remove('{}/20news-bydate.pkz'.format(path))
