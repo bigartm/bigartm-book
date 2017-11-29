@@ -8,3 +8,4 @@ Topic Modeling with BigARTM
 - [ARTM Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/ARTM_tutorial_EN.ipynb)
 - [LDA Python Tutorial (RU)](https://github.com/bigartm/bigartm-book/blob/master/LDA_tutorial_RU.ipynb)
 - [LDA Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/LDA_tutorial_EN.ipynb)
+- [hARTM Python Tutorial (EN)](https://github.com/bigartm/bigartm-book/blob/master/hARTM_tutorial.ipynb)
